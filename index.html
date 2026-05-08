@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#111111" />
+  <title>YKS Random</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #111; color: #f0f0f0; min-height: 100vh; display: flex; justify-content: center; padding: 48px 20px 32px; }
+    .app { width: 100%; max-width: 440px; }
+    .header { text-align: center; margin-bottom: 32px; }
+    .logo { font-size: 11px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #888; margin-bottom: 6px; }
+    .title { font-size: 26px; font-weight: 700; }
+    .subtitle { font-size: 14px; color: #666; margin-top: 4px; }
+    .card { background: #1c1c1c; border: 1px solid #2a2a2a; border-radius: 16px; padding: 20px; margin-bottom: 12px; min-height: 200px; display: flex; flex-direction: column; justify-content: center; }
+    .empty { text-align: center; color: #555; font-size: 15px; }
+    .ep-badge { display: inline-block; font-size: 11px; font-weight: 600; color: #f59e0b; background: rgba(245,158,11,0.12); border-radius: 6px; padding: 3px 8px; margin-bottom: 10px; }
+    .ep-title { font-size: 18px; font-weight: 600; line-height: 1.4; margin-bottom: 8px; }
+    .ep-date { font-size: 13px; color: #666; margin-bottom: 12px; }
+    .ep-desc { font-size: 13px; color: #888; line-height: 1.65; display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+    .ep-count { text-align: center; font-size: 12px; color: #555; margin-bottom: 16px; }
+    .actions { display: flex; flex-direction: column; gap: 10px; }
+    .btn { width: 100%; padding: 16px; border-radius: 12px; font-size: 16px; font-weight: 600; cursor: pointer; border: none; display: flex; align-items: center; justify-content: center; gap: 8px; transition: transform 0.1s; }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    .btn-pick { background: #222; color: #f0f0f0; border: 1px solid #333; }
+    .btn-open { background: #f59e0b; color: #111; }
+    .status { text-align: center; font-size: 13px; color: #555; margin-top: 14px; min-height: 20px; }
+    .footer { text-align: center; font-size: 12px; color: #444; margin-top: 28px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="header">
+      <div class="logo">Your Kickstarter Sucks</div>
+      <div class="title">🎲 Random Episode</div>
+      <div class="subtitle">Patreon Premium Feed</div>
+    </div>
+    <div class="card" id="ep-card">
+      <div class="empty">🎙️<br><br>Tap below to pick a random episode</div>
+    </div>
+    <div class="ep-count" id="ep-count"></div>
+    <div class="actions">
+      <button class="btn btn-pick" id="btn-pick" onclick="pickEpisode()">🔀 Pick a random episode</button>
+      <button class="btn btn-open" id="btn-open" onclick="openInPocketCasts()" disabled>🎧 Open in Pocket Casts</button>
+    </div>
+    <div class="status" id="status"></div>
+    <div class="footer">Chrome → tap ⋮ → "Add to Home screen"</div>
+  </div>
+  <script>
+    const RSS = 'https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.patreon.com/rss/yourkickstartersucks?auth=1df4acb499892fa934a4278108380156&show=877056');
+    let episodes = [], current = null;
+    function fmt(s) { try { return new Date(s).toLocaleDateString('en-NZ',{year:'numeric',month:'long',day:'numeric'}); } catch { return s; } }
+    function strip(h) { const d=document.createElement('div'); d.innerHTML=h; return d.textContent||''; }
+    function status(m,l) { document.getElementById('status').innerHTML=l?'⏳ '+m:m; }
+    async function load() {
+      status('Loading episodes...',true);
+      document.getElementById('btn-pick').disabled=true;
+      try {
+        const j=await (await fetch(RSS)).json();
+        const items=new DOMParser().parseFromString(j.contents,'text/xml').querySelectorAll('item');
+        episodes=Array.from(items).map((x,i)=>({
+          title:x.querySelector('title')?.textContent||'Untitled',
+          date:x.querySelector('pubDate')?.textContent||'',
+          desc:strip(x.querySelector('description')?.textContent||''),
+          ep:items.length-i
+        }));
+        document.getElementById('ep-count').textContent=episodes.length+' episodes loaded';
+        status('');
+        document.getElementById('btn-pick').disabled=false;
+        pick();
+      } catch(e) { status('Could not load — check connection and reload.'); document.getElementById('btn-pick').disabled=false; }
+    }
+    function pick() {
+      if(!episodes.length){load();return;}
+      current=episodes[Math.floor(Math.random()*episodes.length)];
+      document.getElementById('ep-card').innerHTML=
+        '<div class="ep-badge">Ep '+current.ep+' of '+episodes.length+'</div>'+
+        '<div class="ep-title">'+current.title+'</div>'+
+        '<div class="ep-date">📅 '+fmt(current.date)+'</div>'+
+        '<div class="ep-desc">'+(current.desc.slice(0,400))+(current.desc.length>400?'…':'')+'</div>';
+      document.getElementById('btn-open').disabled=false;
+    }
+    function pickEpisode(){pick();}
+    function openInPocketCasts() {
+      if(!current)return;
+      const q=encodeURIComponent(current.title);
+      window.location.href='pktc://discover?episode='+q;
+      setTimeout(()=>window.open('https://play.pocketcasts.com/podcasts/search?q='+q,'_blank'),1500);
+    }
+    load();
+  </script>
+</body>
+</html>
